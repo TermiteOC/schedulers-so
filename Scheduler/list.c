@@ -10,14 +10,21 @@
 #include "task.h"
 
 
-// add a new task to the list of tasks
+// add a new task to the list of tasks (final da lista)
 void insert(struct node **head, Task *newTask) {
-    // add the new task to the list 
     struct node *newNode = malloc(sizeof(struct node));
-
     newNode->task = newTask;
-    newNode->next = *head;
-    *head = newNode;
+    newNode->next = NULL;
+
+    if (*head == NULL) {
+        *head = newNode;
+    } else {
+        struct node *temp = *head;
+        while (temp->next != NULL) {
+            temp = temp->next;
+        }
+        temp->next = newNode;
+    }
 }
 
 // delete the selected task from the list

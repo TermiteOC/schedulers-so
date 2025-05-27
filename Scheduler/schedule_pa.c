@@ -8,7 +8,7 @@
 #include "schedule_pa.h"
 #include "timer.h"
 
-#define AGING_LIMIT 3  // Após 3 ciclos sem executar, a prioridade sobe
+#define AGING_LIMIT 10  // Após 7 ciclos sem executar, a prioridade sobe
 
 // Múltiplas filas, uma para cada nível de prioridade
 struct node *fila[MAX_PRIORITY + 1] = {NULL};
@@ -75,7 +75,7 @@ void apply_aging(Task *executed_task) {
 
                 free(temp);
 
-                // Insere na fila de prioridade superior
+                // Insere na fila de prioridade superior (no fim)
                 struct node *newNode = malloc(sizeof(struct node));
                 newNode->task = t;
                 newNode->next = NULL;
@@ -97,7 +97,7 @@ void apply_aging(Task *executed_task) {
     }
 }
 
-// Função principal de escalonamento
+// Função principal de escalonamento FCFS com prioridade e aging
 void schedule() {
     start_timer();
 
@@ -112,7 +112,7 @@ void schedule() {
                 tasks_remaining = 1;
 
                 Task *t = fila[p]->task;
-                int slice = (t->burst > QUANTUM) ? QUANTUM : t->burst;
+                int slice = t->burst;  // FCFS: executa task até o fim do burst
 
                 run(t, slice);
                 t->burst -= slice;
@@ -120,25 +120,14 @@ void schedule() {
                 // Resetar waitingTime da task executada para 0
                 t->waitingTime = 0;
 
+                // Remove a task da fila
                 struct node *oldHead = fila[p];
                 fila[p] = fila[p]->next;
                 free(oldHead);
 
                 if (t->burst > 0) {
-                    // Reinsere no fim da mesma fila
-                    struct node *newNode = malloc(sizeof(struct node));
-                    newNode->task = t;
-                    newNode->next = NULL;
-
-                    if (fila[p] == NULL) {
-                        fila[p] = newNode;
-                    } else {
-                        struct node *temp = fila[p];
-                        while (temp->next != NULL) {
-                            temp = temp->next;
-                        }
-                        temp->next = newNode;
-                    }
+                    // FCFS executa até acabar a task, então aqui ela terminou
+                    // (não deve acontecer, pois slice = burst)
                 } else {
                     free(t); // Task finalizada
                 }

@@ -11,6 +11,22 @@
 
 struct node *fifo[PRIORITY_LEVELS] = { NULL };
 
+// Função auxiliar para inserir no final da fila
+void insert_fifo(struct node **queue, Task *t) {
+    struct node *newNode = malloc(sizeof(struct node));
+    newNode->task = t;
+    newNode->next = NULL;
+
+    if (*queue == NULL) {
+        *queue = newNode;
+    } else {
+        struct node *temp = *queue;
+        while (temp->next != NULL)
+            temp = temp->next;
+        temp->next = newNode;
+    }
+}
+
 void add(char *name, int priority, int burst) {
     if (priority < MIN_PRIORITY) priority = MIN_PRIORITY;
     if (priority > MAX_PRIORITY) priority = MAX_PRIORITY;
@@ -20,17 +36,7 @@ void add(char *name, int priority, int burst) {
     t->priority = priority;
     t->burst = burst;
 
-    struct node *newNode = malloc(sizeof(struct node));
-    newNode->task = t;
-    newNode->next = NULL;
-
-    if (fifo[priority] == NULL) {
-        fifo[priority] = newNode;
-    } else {
-        struct node *temp = fifo[priority];
-        while (temp->next != NULL) temp = temp->next;
-        temp->next = newNode;
-    }
+    insert_fifo(&fifo[priority], t);
 }
 
 void schedule() {
@@ -39,9 +45,11 @@ void schedule() {
     do {
         tasks_remaining = 0;
 
+        // Agora percorre prioridades mais baixas primeiro
         for (int p = MIN_PRIORITY; p <= MAX_PRIORITY; p++) {
-            struct node *queue = fifo[p];
-            if (queue != NULL) tasks_remaining = 1;
+            struct node *current = fifo[p];
+            if (current != NULL)
+                tasks_remaining = 1;
 
             while (fifo[p] != NULL) {
                 Task *t = fifo[p]->task;
@@ -54,17 +62,7 @@ void schedule() {
                 free(executed);
 
                 if (t->burst > 0) {
-                    struct node *newNode = malloc(sizeof(struct node));
-                    newNode->task = t;
-                    newNode->next = NULL;
-
-                    if (fifo[p] == NULL) {
-                        fifo[p] = newNode;
-                    } else {
-                        struct node *temp = fifo[p];
-                        while (temp->next != NULL) temp = temp->next;
-                        temp->next = newNode;
-                    }
+                    insert_fifo(&fifo[p], t);
                 } else {
                     free(t);
                 }
