@@ -8,12 +8,10 @@
 #include "schedule_pa.h"
 #include "timer.h"
 
-#define AGING_LIMIT 10  // Após 7 ciclos sem executar, a prioridade sobe
+#define AGING_LIMIT 3  // Após 3 ciclos sem executar, a prioridade sobe
 
-// Múltiplas filas, uma para cada nível de prioridade
 struct node *fila[MAX_PRIORITY + 1] = {NULL};
 
-// Adiciona uma nova task à fila correspondente
 void add(char *name, int priority, int burst) {
     if (priority < MIN_PRIORITY) priority = MIN_PRIORITY;
     if (priority > MAX_PRIORITY) priority = MAX_PRIORITY;
@@ -22,7 +20,7 @@ void add(char *name, int priority, int burst) {
     t->name = strdup(name);
     t->priority = priority;
     t->burst = burst;
-    t->waitingTime = 0; // Usado para aging
+    t->waitingTime = 0;
 
     struct node *newNode = malloc(sizeof(struct node));
     newNode->task = t;
@@ -39,7 +37,6 @@ void add(char *name, int priority, int burst) {
     }
 }
 
-// Aging: aumenta a prioridade das tasks que estão esperando (ignora a executada)
 void apply_aging(Task *executed_task) {
     for (int p = MIN_PRIORITY + 1; p <= MAX_PRIORITY; p++) {
         struct node *prev = NULL;
@@ -47,7 +44,6 @@ void apply_aging(Task *executed_task) {
 
         while (curr != NULL) {
             if (curr->task == executed_task) {
-                // Ignora aging para a task que acabou de executar
                 prev = curr;
                 curr = curr->next;
                 continue;
@@ -56,14 +52,12 @@ void apply_aging(Task *executed_task) {
             curr->task->waitingTime++;
 
             if (curr->task->waitingTime >= AGING_LIMIT) {
-                // Sobe prioridade, mas não pode ultrapassar MIN_PRIORITY
                 Task *t = curr->task;
                 if (t->priority > MIN_PRIORITY) {
                     t->priority--;
                 }
                 t->waitingTime = 0;
 
-                // Remove da fila atual
                 if (prev == NULL) {
                     fila[p] = curr->next;
                 } else {
@@ -72,10 +66,8 @@ void apply_aging(Task *executed_task) {
 
                 struct node *temp = curr;
                 curr = curr->next;
-
                 free(temp);
 
-                // Insere na fila de prioridade superior (no fim)
                 struct node *newNode = malloc(sizeof(struct node));
                 newNode->task = t;
                 newNode->next = NULL;
@@ -97,7 +89,29 @@ void apply_aging(Task *executed_task) {
     }
 }
 
-// Função principal de escalonamento FCFS com prioridade e aging
+struct node *find_shortest_task_node(struct node *head, struct node **prev_out) {
+    struct node *min_node = head;
+    struct node *min_prev = NULL;
+
+    struct node *curr = head;
+    struct node *prev = NULL;
+
+    while (curr != NULL) {
+        if (curr->task->burst < min_node->task->burst) {
+            min_node = curr;
+            min_prev = prev;
+        }
+        prev = curr;
+        curr = curr->next;
+    }
+
+    if (prev_out != NULL) {
+        *prev_out = min_prev;
+    }
+
+    return min_node;
+}
+
 void schedule() {
     start_timer();
 
@@ -106,36 +120,49 @@ void schedule() {
     while (tasks_remaining) {
         tasks_remaining = 0;
 
-        // Percorre as filas da maior prioridade para a menor
         for (int p = MIN_PRIORITY; p <= MAX_PRIORITY; p++) {
             if (fila[p] != NULL) {
                 tasks_remaining = 1;
 
-                Task *t = fila[p]->task;
-                int slice = t->burst;  // FCFS: executa task até o fim do burst
+                struct node *prev = NULL;
+                struct node *shortest = find_shortest_task_node(fila[p], &prev);
+
+                Task *t = shortest->task;
+                int slice = (t->burst > QUANTUM) ? QUANTUM : t->burst;
 
                 run(t, slice);
                 t->burst -= slice;
 
-                // Resetar waitingTime da task executada para 0
                 t->waitingTime = 0;
 
-                // Remove a task da fila
-                struct node *oldHead = fila[p];
-                fila[p] = fila[p]->next;
-                free(oldHead);
-
-                if (t->burst > 0) {
-                    // FCFS executa até acabar a task, então aqui ela terminou
-                    // (não deve acontecer, pois slice = burst)
+                if (prev == NULL) {
+                    fila[p] = shortest->next;
                 } else {
-                    free(t); // Task finalizada
+                    prev->next = shortest->next;
                 }
 
-                // Aplica aging após executar uma task, ignorando a executada
+                free(shortest);
+
+                if (t->burst > 0) {
+                    struct node *newNode = malloc(sizeof(struct node));
+                    newNode->task = t;
+                    newNode->next = NULL;
+
+                    if (fila[p] == NULL) {
+                        fila[p] = newNode;
+                    } else {
+                        struct node *temp = fila[p];
+                        while (temp->next != NULL) {
+                            temp = temp->next;
+                        }
+                        temp->next = newNode;
+                    }
+                } else {
+                    free(t);
+                }
+
                 apply_aging(t);
 
-                // Sai do for para sempre priorizar a maior prioridade disponível
                 break;
             }
         }

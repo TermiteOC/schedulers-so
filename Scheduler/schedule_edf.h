@@ -5,7 +5,9 @@
 #define MAX_PRIORITY 10
 
 // add a task to the list 
-void add(char *name, int priority, int burst, int deadline);
+void add_edf(char *name, int priority, int burst, int deadline);
+
+void add(char *name, int priority, int burst);
 
 // invoke the scheduler
 void schedule();

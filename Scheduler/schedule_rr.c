@@ -15,7 +15,6 @@ void add(char *name, int priority, int burst) {
     t->priority = priority;
     t->burst = burst;
 
-    // Agora usamos a função insert() que insere no final da lista (FIFO)
     insert(&head, t);
 }
 

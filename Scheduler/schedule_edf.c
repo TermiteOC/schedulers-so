@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <pthread.h>
 #include <unistd.h>
 
 #include "timer.h"
@@ -10,62 +9,84 @@
 #include "CPU.h"
 #include "schedule_edf.h"
 
-#define MAX_TASKS 100
+struct node *head = NULL;
 
-Task *tasks[MAX_TASKS];
-int num_tasks = 0;
-
-void add(char *name, int priority, int burst, int deadline) {
-    if (num_tasks >= MAX_TASKS) {
-        printf("Erro: número máximo de tarefas excedido!\n");
-        return;
-    }
-
+void add_edf(char *name, int priority, int burst, int deadline) {
     Task *t = malloc(sizeof(Task));
     t->name = strdup(name);
     t->priority = priority;
     t->burst = burst;
     t->deadline = deadline;
 
-    tasks[num_tasks++] = t;
+    insert(&head, t);
 }
 
-// encontra índice com menor deadline
-int find_next_task() {
-    int min_index = -1;
-    int min_deadline = __INT_MAX__;
+struct node* find_earliest_valid_deadline() {
+    struct node *curr = head;
+    struct node *selected = NULL;
 
-    for (int i = 0; i < num_tasks; i++) {
-        if (tasks[i]->burst > 0 && tasks[i]->deadline < min_deadline) {
-            min_deadline = tasks[i]->deadline;
-            min_index = i;
+    int min_deadline = __INT_MAX__;
+    while (curr != NULL) {
+        Task *t = curr->task;
+        if (t->burst > 0 && t->deadline >= time_elapsed && t->deadline < min_deadline) {
+            min_deadline = t->deadline;
+            selected = curr;
         }
+        curr = curr->next;
     }
 
-    return min_index;
+    return selected;
+}
+
+void remove_expired_tasks() {
+    struct node *curr = head;
+    struct node *prev = NULL;
+
+    while (curr != NULL) {
+        Task *t = curr->task;
+
+        if (t->deadline < time_elapsed) {
+            printf("Tarefa \"%s\" descartada (deadline %d < tempo %d)\n", t->name, t->deadline, time_elapsed);
+            struct node *to_delete = curr;
+            curr = curr->next;
+
+            delete(&head, t);
+            free(to_delete->task->name);
+            free(to_delete->task);
+            free(to_delete);
+        } else {
+            curr = curr->next;
+        }
+    }
 }
 
 void schedule() {
     start_timer();
 
-    while (1) {
-        int idx = find_next_task();
-        if (idx == -1) break;
+    while (head != NULL) {
+        remove_expired_tasks();
 
-        Task *t = tasks[idx];
+        struct node *n = find_earliest_valid_deadline();
+        if (n == NULL) break;
+
+        Task *t = n->task;
         int slice = (t->burst > QUANTUM) ? QUANTUM : t->burst;
 
         run(t, slice);
         t->burst -= slice;
 
-        usleep(slice * 10);
+        usleep(slice * 1000);
+        time_elapsed += slice;
+
+        if (t->burst <= 0) {
+            delete(&head, t);
+            free(t->name);
+            free(t);
+        }
     }
 
     stop_timer();
+}
 
-    for (int i = 0; i < num_tasks; i++) {
-        free(tasks[i]->name);
-        free(tasks[i]);
-    }
-    num_tasks = 0;
+void add(char *name, int priority, int burst) {
 }

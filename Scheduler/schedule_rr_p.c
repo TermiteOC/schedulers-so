@@ -11,7 +11,6 @@
 
 struct node *fifo[PRIORITY_LEVELS] = { NULL };
 
-// Função auxiliar para inserir no final da fila
 void insert_fifo(struct node **queue, Task *t) {
     struct node *newNode = malloc(sizeof(struct node));
     newNode->task = t;
@@ -45,7 +44,6 @@ void schedule() {
     do {
         tasks_remaining = 0;
 
-        // Agora percorre prioridades mais baixas primeiro
         for (int p = MIN_PRIORITY; p <= MAX_PRIORITY; p++) {
             struct node *current = fifo[p];
             if (current != NULL)
